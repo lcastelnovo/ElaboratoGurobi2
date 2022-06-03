@@ -125,6 +125,7 @@ public class CommessoViaggiatore extends GRBCallback{
             model1.setCallback(new CommessoViaggiatore(xij1));
             //Creo il modello, le variabili e imposto la funzione obiettivo e i vincoli del problema per il secondo quesito
             resolve(model1);
+            double objval1 = model1.get(GRB.DoubleAttr.ObjVal); //estraggo il valore della funzione obbiettivo del modello 1, necessario per il secondo quesito
             //aggiungo vincoli e risolvo modello del quesito due
             GRBModel model2 = new GRBModel(env);
             model2.set(GRB.IntParam.LazyConstraints, 1); //Attiva l'utilizzo delle LazyCostraints
@@ -133,7 +134,7 @@ public class CommessoViaggiatore extends GRBCallback{
             addMaxOneVisitConstr(model2, xij2, numero_nodi);
             addPositiveConstr(model2, xij2, numero_nodi);
             addChooseAnotherNodeConstr(xij2, numero_nodi);
-            addSecondAnswerConstr(xij2);
+            addSecondAnswerConstr(model2, xij2, objval1, numero_nodi);
             model2.setCallback(new CommessoViaggiatore(xij2, true, false));
             resolve(model2);
             //Creo il modello, le variabili e imposto la funzione obiettivo e i vincoli del problema per il terzo quesito
@@ -165,7 +166,7 @@ public class CommessoViaggiatore extends GRBCallback{
 
     /**
      * Metodo per settare i parametri del solver Gurobi
-     * @param env       l'enviroment del problema
+     * @param env       environment del problema
      * @throws GRBException
      */
     private static void setParams(GRBEnv env)
@@ -397,7 +398,8 @@ public class CommessoViaggiatore extends GRBCallback{
     }
 
     /**
-     * Metodo per inserire un vincolo per il secondo quesito, anche se in questo caso non è un vero e proprio vincolo
+     * Metodo per inserire un vincolo per il secondo quesito, che impone che il valore della funzione obiettivo sia
+     * uguale quello del primo quesito
      * Viene imposto che il lower bound dell'ultimo nodo selezionato dal ciclo del primo quesito sia a 1, in modo che
      * gurobi sia costretto a selezionare quello per primo. Questo viene annullato con la prima chiamata di callback,
      * divincolando gurobi a tenere selezionato quel nodo.
@@ -405,11 +407,20 @@ public class CommessoViaggiatore extends GRBCallback{
      * @throws GRBException
      */
     private static void addSecondAnswerConstr(
-            GRBVar[][] xij
+            GRBModel model,
+            GRBVar[][] xij,
+            double obj1,
+            int n
             )
             throws GRBException
     {
         xij[41][39].set(GRB.DoubleAttr.LB, 1.0);
+        GRBLinExpr vincolo = new GRBLinExpr();
+        for(int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++)
+                vincolo.addTerm(CommessoViaggiatore.costi[i][j], xij[i][j]);
+        }
+        model.addConstr(vincolo, GRB.EQUAL, obj1, "vincolo_obiettivo_uguale_al_primo_modello");
     }
 
     /**
